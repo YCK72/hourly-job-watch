@@ -1,0 +1,4 @@
+{
+  "skills": ["python", "sql", "git"],
+  "note": "Example only. Put your own resume-derived skills in the PROFILE_JSON secret."
+}

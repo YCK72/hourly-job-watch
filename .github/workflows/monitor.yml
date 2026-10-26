@@ -1,0 +1,64 @@
+name: Hourly job watch
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: hourly-job-watch
+  cancel-in-progress: false
+jobs:
+  monitor:
+    # Fail closed on private repositories to avoid consuming paid minute overages.
+    if: github.event.repository.private == false && vars.MONITOR_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Verify logic
+        run: python3 -m unittest discover -s tests -v
+      - name: Restore persistent first-seen and delivery state
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin monitor-state >/dev/null; then
+            git fetch origin monitor-state
+            git show FETCH_HEAD:state.json > state.json
+          else
+            code=$?
+            if [ "$code" != 2 ]; then exit "$code"; fi
+            printf '{}' > state.json
+          fi
+      - name: Collect and append new matches
+        id: collect
+        env:
+          PROFILE_JSON: ${{ secrets.PROFILE_JSON }}
+          GOOGLE_OAUTH_JSON: ${{ secrets.GOOGLE_OAUTH_JSON }}
+          GOOGLE_DOC_ID: ${{ secrets.GOOGLE_DOC_ID }}
+        run: python3 -m monitor.run --deliver
+      - name: Persist state even after a partial delivery
+        if: always() && steps.collect.outcome != 'skipped'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f state.json || exit 0
+          python3 -c 'import json; assert isinstance(json.load(open("state.json")), dict)'
+          cp state.json "$RUNNER_TEMP/job-watch-state.json"
+          if git ls-remote --exit-code --heads origin monitor-state >/dev/null; then
+            git fetch origin monitor-state
+            git checkout -B monitor-state FETCH_HEAD
+          else
+            code=$?
+            if [ "$code" != 2 ]; then exit "$code"; fi
+            git checkout --orphan monitor-state
+            git rm -rf --cached .
+          fi
+          cp "$RUNNER_TEMP/job-watch-state.json" state.json
+          git add -f state.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if ! git diff --cached --quiet; then
+            git commit -m 'Persist job monitor state'
+            git push origin HEAD:monitor-state
+          fi

@@ -1,0 +1,8 @@
+__pycache__/
+.pytest_cache/
+.env
+secrets/
+local-profile.json
+state.json
+matches.json
+run-status.json
