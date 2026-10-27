@@ -15,7 +15,7 @@ and other tabs stay intact. In Docs, only generated job blocks are removed; sepa
 headings and notes are retained. A durable destination timestamp prevents retries from
 clearing the new batch again. Keep the refresh marker/metadata and the monitor-state branch.
 
-The workflow still checks hourly. GitHub can delay or skip scheduled runs, so the reset
+The workflow checks every five minutes. GitHub can delay or skip scheduled runs, so the reset
 happens on the first run after 24 hours, not at a guaranteed wall-clock deadline.
 
 ## Google Sheets delivery
@@ -118,9 +118,9 @@ Set repository Actions secrets:
 
 Set repository Actions variable `MONITOR_ENABLED` to `true` only after these are ready.
 Run **Hourly job watch → Run workflow** and verify the Doc. Run again to verify no duplicates.
-It is scheduled at minute 17 of every UTC hour. Schedules run from the default branch and
+It is scheduled every five minutes (`*/5 * * * *`). Schedules run from the default branch and
 may be delayed/skipped by GitHub; public schedules may disable after 60 days of repository
-inactivity. Review Actions failures and re-enable if needed. This is best-effort hourly polling,
+inactivity. Review Actions failures and re-enable if needed. This is best-effort five-minute polling,
 not a real-time service-level guarantee.
 
 ## Persistent state and recovery
