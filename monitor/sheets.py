@@ -65,12 +65,14 @@ class GoogleSheet:
         return seen
 
     def format_rows(self, first, last):
-        metadata = request(self.url + '?fields=sheets(properties(sheetId,title))', token=self.token)
-        sheet_id = next(s['properties']['sheetId'] for s in metadata['sheets'] if s['properties']['title'] == 'Jobs')
+        metadata = request(self.url + '?fields=sheets(properties(sheetId,title),basicFilter)', token=self.token)
+        sheet = next(s for s in metadata['sheets'] if s['properties']['title'] == 'Jobs')
+        sheet_id = sheet['properties']['sheetId']
+        basic_filter = dict(sheet.get('basicFilter', {}))
+        basic_filter['range'] = {'sheetId': sheet_id, 'startRowIndex': 4, 'startColumnIndex': 0, 'endColumnIndex': 20}
         bounds = {'sheetId': sheet_id, 'startRowIndex': first - 1, 'endRowIndex': last}
         requests = [
-            {'setBasicFilter': {'filter': {'range': {'sheetId': sheet_id, 'startRowIndex': 4,
-                                                   'startColumnIndex': 0, 'endColumnIndex': 20}}}},
+            {'setBasicFilter': {'filter': basic_filter}},
             {'repeatCell': {'range': dict(bounds, startColumnIndex=0, endColumnIndex=20),
                             'cell': {'userEnteredFormat': {'wrapStrategy': 'WRAP', 'verticalAlignment': 'TOP',
                                       'textFormat': {'fontFamily': 'Arial', 'fontSize': 11}}},

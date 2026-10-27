@@ -78,6 +78,16 @@ class SheetTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 sink.read()
 
+    def test_appending_preserves_user_filter(self):
+        sink=self.sink()
+        criteria={'2':{'condition':{'type':'NUMBER_GREATER','values':[{'userEnteredValue':'0.8'}]}}}
+        metadata={'sheets':[{'properties':{'title':'Jobs','sheetId':9},'basicFilter':{'criteria':criteria}}]}
+        with patch('monitor.sheets.request',side_effect=[metadata,{}]) as send:
+            GoogleSheet.format_rows(sink,57,58)
+            payload=send.call_args.args[1]
+            self.assertEqual(payload['requests'][0]['setBasicFilter']['filter']['criteria'],criteria)
+            self.assertFalse(any('values' in request for request in payload['requests']))
+
 
 if __name__=='__main__':
     unittest.main()
