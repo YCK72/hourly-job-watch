@@ -36,6 +36,8 @@ jobs:
           PROFILE_JSON: ${{ secrets.PROFILE_JSON }}
           GOOGLE_OAUTH_JSON: ${{ secrets.GOOGLE_OAUTH_JSON }}
           GOOGLE_DOC_ID: ${{ secrets.GOOGLE_DOC_ID }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          DELIVERY_TARGET: ${{ vars.DELIVERY_TARGET || 'docs' }}
         run: python3 -m monitor.run --deliver
       - name: Persist state even after a partial delivery
         if: always() && steps.collect.outcome != 'skipped'

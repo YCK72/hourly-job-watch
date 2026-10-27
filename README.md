@@ -1,5 +1,26 @@
 # Hourly Job Watch
 
+## Google Sheets delivery
+
+The monitor also supports a filterable `Jobs` worksheet with 20 columns, a frozen header
+at row 5, company/role columns on the left, numeric fit and dates, employer evidence,
+and an editable `My notes` column. The `Job ID` column is the delivery ledger; retain it
+when sorting and do not delete its values. The writer appends with RAW input so employer
+text cannot become a formula. It never changes existing notes or application statuses.
+
+To switch an existing deployment: enable Google Sheets API in the OAuth client's project,
+run `python scripts/authorize_google.py secrets/client.json --sheets`, update
+`GOOGLE_OAUTH_JSON`, and add the destination ID as `GOOGLE_SHEET_ID`. Import the prepared
+workbook before switching. Set Actions variable `DELIVERY_TARGET=sheets` only after verifying
+the imported rows. Without that variable the monitor keeps writing to Docs.
+
+Sheets delivery has its own destination-specific state. Existing Docs delivery flags do not
+skip jobs in a new Sheet. Migrated rows are reconciled by Job ID; historical jobs which have
+closed must be migrated from the original report before switching. The Doc remains as an archive.
+The same workflow concurrency group serializes all runs. Do not run a separate local writer
+concurrently. Existing rows may be sorted and notes edited; do not rename the Jobs tab,
+reorder the columns, or insert non-job rows inside the table.
+
 A zero-paid-API monitor for US new-grad/entry-level SWE, Backend, AI/ML and Data Engineering jobs.
 Python 3.11+ standard library only. It reads public employer job boards and appends new matches
 to a Google Doc. It has no application submission code, browser automation, paid models or paid scraping service.

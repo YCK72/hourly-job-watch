@@ -17,6 +17,7 @@ def save(path, data):
 
 def process(jobs, profile, state, sink=None, now=None):
     now = now or datetime.now(timezone.utc).isoformat()
+    destination = getattr(sink, 'delivery_key', 'docs')
     matches, cycle = [], set()
     for job in jobs:
         key = identity(job)
@@ -24,7 +25,7 @@ def process(jobs, profile, state, sink=None, now=None):
             continue
         cycle.add(key)
         previous = state.setdefault(key, {'first_seen': now, 'reported': False})
-        if previous['reported']:
+        if (destination == 'docs' and previous['reported']) or destination in previous.get('reported_to', []):
             continue
         result = evaluate(job, profile)
         if result:
@@ -36,7 +37,10 @@ def process(jobs, profile, state, sink=None, now=None):
             batch = matches[offset:offset + 20]
             delivered = sink.append(batch)
             for key in delivered:
-                state[key]['reported'] = True
+                if destination == 'docs':
+                    state[key]['reported'] = True
+                elif destination not in state[key].setdefault('reported_to', []):
+                    state[key]['reported_to'].append(destination)
     return matches
 
 
@@ -47,6 +51,7 @@ def main():
     parser.add_argument('--state', default='state.json')
     parser.add_argument('--output', default='matches.json')
     parser.add_argument('--deliver', action='store_true')
+    parser.add_argument('--destination', choices=['docs', 'sheets'], default=os.environ.get('DELIVERY_TARGET', 'docs'))
     args = parser.parse_args()
     profile = json.loads(Path(args.profile).read_text(encoding='utf-8') if args.profile else os.environ['PROFILE_JSON'])
     if not isinstance(profile.get('skills'), list) or not profile['skills']:
@@ -60,8 +65,12 @@ def main():
         raise RuntimeError('All sources failed; no delivery attempted')
     sink = None
     if args.deliver:
-        from .docs import GoogleDoc
-        sink = GoogleDoc()
+        if args.destination == 'sheets':
+            from .sheets import GoogleSheet
+            sink = GoogleSheet()
+        else:
+            from .docs import GoogleDoc
+            sink = GoogleDoc()
     try:
         matches = process(jobs, profile, state, sink)
         save(args.output, matches)

@@ -15,8 +15,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('client_file', help='Downloaded Google Desktop OAuth client JSON')
     parser.add_argument('--output', default='secrets/google-oauth.json')
+    parser.add_argument('--sheets', action='store_true', help='Also request Sheets access for spreadsheet delivery')
     args = parser.parse_args()
     client = json.loads(Path(args.client_file).read_text())['installed']
+    scopes = ['https://www.googleapis.com/auth/documents']
+    if args.sheets:
+        scopes.append('https://www.googleapis.com/auth/spreadsheets')
     state, verifier = secrets.token_urlsafe(32), secrets.token_urlsafe(64)
     challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b'=').decode()
     result = {}
@@ -38,7 +42,7 @@ def main():
     with http.server.HTTPServer(('127.0.0.1', 0), Callback) as server:
         redirect = f'http://127.0.0.1:{server.server_port}/'
         query = urllib.parse.urlencode(dict(client_id=client['client_id'], redirect_uri=redirect,
-            response_type='code', scope='https://www.googleapis.com/auth/documents', access_type='offline',
+            response_type='code', scope=' '.join(scopes), access_type='offline',
             prompt='consent', state=state, code_challenge=challenge, code_challenge_method='S256'))
         webbrowser.open('https://accounts.google.com/o/oauth2/v2/auth?' + query)
         server.timeout = 300
