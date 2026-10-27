@@ -125,7 +125,14 @@ Reviewed [Simplify New-Grad Positions](https://github.com/SimplifyJobs/New-Grad-
 a useful discovery list, but did not treat community labels as employer sponsorship evidence.
 Reviewed [JobSpy](https://github.com/speedyapply/JobSpy); direct ATS APIs avoid its scraper
 dependencies, blocking/proxy concerns, and the need to infer facts from partial search snippets.
-Current coverage is the configured 16 employers, not all US job listings.
+Current coverage is 78 configured employers, not all US job listings. On October 26,
+2026, 63 additional public feeds were validated and Palantir was removed from future
+collection. Existing historical rows are retained. The list includes AI labs, cloud
+and data infrastructure, developer tools, fintech, and consumer technology companies.
+Only feeds returning postings through the supported free APIs were added; employers
+using other systems or unavailable feeds are not covered. See `sources.json` for the
+exact current list. A working feed does not imply current entry-level vacancies or
+visa sponsorship; the existing role, fit, location, and sponsorship checks still apply.
 
 Primary references:
 - [Greenhouse public API](https://docs.greenhouse.io/job-board.html)
