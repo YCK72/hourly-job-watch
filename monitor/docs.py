@@ -4,6 +4,21 @@ import os
 import re
 import urllib.parse
 import urllib.request
+from datetime import datetime, timedelta, timezone
+
+
+REFRESH_PREFIX = '[job-watch-refresh:'
+
+
+def refresh_due(marker, now):
+    if not marker:
+        return True
+    if not marker.startswith(REFRESH_PREFIX) or not marker.endswith(']'):
+        raise ValueError('Invalid list refresh marker')
+    previous = datetime.fromisoformat(marker[len(REFRESH_PREFIX):-1])
+    if previous.tzinfo is None:
+        raise ValueError('Refresh timestamp must include timezone')
+    return now - previous >= timedelta(hours=24)
 
 
 def request(url, payload=None, token=None, form=False):
@@ -63,6 +78,42 @@ class GoogleDoc:
         text = ''.join(strings(doc))
         return doc['revisionId'], set(re.findall(r'\[job-watch:([a-f0-9]{64})\]', text))
 
+    def refresh(self, now=None):
+        now = now or datetime.now(timezone.utc)
+        doc = request(self.url, token=self.token)
+        if 'body' not in doc:
+            raise ValueError('Default document body unavailable; refusing to reset')
+        # Work only on the default tab's ordinary paragraphs, retaining headings
+        # and other user content. Google Docs indices count UTF-16 code units.
+        text, positions = '', []
+        for element in doc.get('body', {}).get('content', []):
+            for part in element.get('paragraph', {}).get('elements', []):
+                value = part.get('textRun', {}).get('content', '')
+                index = part.get('startIndex', element.get('startIndex', 1))
+                for char in value:
+                    text += char
+                    positions.append(index)
+                    index += len(char.encode('utf-16-le')) // 2
+        markers = list(re.finditer(r'\[job-watch-refresh:[^\]\n]+\]', text))
+        if len(markers) > 1:
+            raise ValueError('Multiple list refresh markers')
+        if not refresh_due(markers[0].group() if markers else '', now):
+            return
+        entries = list(re.finditer(
+            r'(?m)^[^\n]+ — [^\n]+\nDirect link: https://[^\n]+\nLocation: '
+            r'[\s\S]*?\[job-watch:[a-f0-9]{64}\]', text))
+        if len(entries) != len(re.findall(r'\[job-watch:[a-f0-9]{64}\]', ''.join(strings(doc)))):
+            raise ValueError('Cannot safely identify all generated job entries')
+        requests = []
+        for match in sorted(entries + markers, key=lambda m: m.start(), reverse=True):
+            requests.append({'deleteContentRange': {'range': {
+                'startIndex': positions[match.start()],
+                'endIndex': positions[match.end() - 1] + 1}}})
+        requests.append({'insertText': {'location': {'index': 1},
+                         'text': REFRESH_PREFIX + now.isoformat() + ']\n'}})
+        request(self.url + ':batchUpdate', {'writeControl': {'requiredRevisionId': doc['revisionId']},
+                                           'requests': requests}, token=self.token)
+
     def append(self, jobs):
         # Read the durable document ledger before each batch. A crashed run can recover
         # even if Git state was not saved. Revision preconditions prevent racing writers.
@@ -71,7 +122,7 @@ class GoogleDoc:
         if pending:
             request(self.url + ':batchUpdate', {
                 'writeControl': {'requiredRevisionId': revision},
-                'requests': [{'insertText': {'endOfSegmentLocation': {},
+                'requests': [{'insertText': {'location': {'index': 1},
                                             'text': ''.join(entry(j) for j in pending)}}]}, token=self.token)
         # Do not retry uncertain POSTs. Next run reconciles markers before writing.
         return {j['key'] for j in jobs}

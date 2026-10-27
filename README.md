@@ -1,12 +1,31 @@
 # Hourly Job Watch
 
+## Daily fresh list
+
+The first delivery run after this update starts a fresh displayed batch. After 24 hours,
+the next successful collection run clears that batch before delivering newly discovered
+matches. New batches are inserted at the top. This is a daily reset, not a filter on the
+employer's posting date. Jobs can appear for less than 24 hours if discovered near reset time.
+The persistent delivery history is retained, so previously delivered jobs do not refill
+the cleared list. If no new jobs qualify, the active list stays empty.
+
+In Sheets, the outgoing Jobs tab is copied to an `Archive YYYY-MM-DD HHMMSS` tab before
+its identified job rows are cleared, preserving notes and application statuses. Headers
+and other tabs stay intact. In Docs, only generated job blocks are removed; separate
+headings and notes are retained. A durable destination timestamp prevents retries from
+clearing the new batch again. Keep the refresh marker/metadata and the monitor-state branch.
+
+The workflow still checks hourly. GitHub can delay or skip scheduled runs, so the reset
+happens on the first run after 24 hours, not at a guaranteed wall-clock deadline.
+
 ## Google Sheets delivery
 
 The monitor also supports a filterable `Jobs` worksheet with 20 columns, a frozen header
 at row 5, company/role columns on the left, numeric fit and dates, employer evidence,
 and an editable `My notes` column. The `Job ID` column is the delivery ledger; retain it
-when sorting and do not delete its values. The writer appends with RAW input so employer
-text cannot become a formula. It never changes existing notes or application statuses.
+when sorting and do not delete its values. Employer text is written as literal string
+values so it cannot become a formula. Notes and application statuses stay with their
+job rows during the day and are preserved in the archive at reset.
 
 To switch an existing deployment: enable Google Sheets API in the OAuth client's project,
 run `python scripts/authorize_google.py secrets/client.json --sheets`, update
@@ -22,7 +41,7 @@ concurrently. Existing rows may be sorted and notes edited; do not rename the Jo
 reorder the columns, or insert non-job rows inside the table.
 
 A zero-paid-API monitor for US new-grad/entry-level SWE, Backend, AI/ML and Data Engineering jobs.
-Python 3.11+ standard library only. It reads public employer job boards and appends new matches
+Python 3.11+ standard library only. It reads public employer job boards and inserts new matches
 to a Google Doc. It has no application submission code, browser automation, paid models or paid scraping service.
 
 ## What it records
@@ -108,11 +127,12 @@ not a real-time service-level guarantee.
 
 `monitor-state` is a separate branch holding only hashed job IDs, first-seen timestamps and
 reported booleans. It does not contain resume data, scores, descriptions or Google credentials.
-The Doc contains `[job-watch:...]` markers that form a second delivery ledger. Keep these markers.
+The Doc contains `[job-watch:...]` markers that form a delivery ledger for the active batch. Keep these markers.
 The writer reads markers before each batch and uses a Google revision precondition. If Google
 accepted a write but the runner crashed before saving state, the next run reconciles those markers
 and avoids another append. An uncertain write is never blindly retried. Concurrent runs are serialized.
-If markers and state are both deleted, historical duplicate protection is lost. Do not run separate
+Daily resets remove old visible markers, so historical duplicate protection depends on the
+monitor-state branch. Do not delete it. Do not run separate
 copies locally at the same time as Actions. Keep the default first Doc tab for monitor entries.
 
 One source failure does not discard successful sources, but the run is marked failed to make

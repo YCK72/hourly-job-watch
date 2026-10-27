@@ -1,11 +1,11 @@
-"""Append-only Google Sheets delivery; RAW values never execute employer text."""
+"""Daily Google Sheets batches with archived notes and literal employer text."""
 import hashlib
 import json
 import os
 import re
 from datetime import datetime, timezone
 from urllib.parse import quote
-from .docs import request
+from .docs import request, refresh_due, REFRESH_PREFIX
 
 HEADERS = ['Company', 'Role', 'Fit', 'Visa sponsorship', 'Location', 'Posted date',
            'First seen (UTC)', 'Direct link', 'Experience requirement — exact text',
@@ -64,6 +64,42 @@ class GoogleSheet:
                 raise ValueError('Existing job row has no valid Job ID; restore ID before delivery')
         return seen
 
+    def sheet_metadata(self):
+        metadata = request(self.url + '?fields=sheets(properties,developerMetadata)', token=self.token)
+        return next(s for s in metadata['sheets'] if s['properties']['title'] == 'Jobs')
+
+    def refresh(self, now=None):
+        now = now or datetime.now(timezone.utc)
+        self.read()
+        sheet = self.sheet_metadata()
+        sheet_id = sheet['properties']['sheetId']
+        markers = [m for m in sheet.get('developerMetadata', [])
+                   if m['metadataKey'] == 'job_watch_refresh']
+        if len(markers) > 1:
+            raise ValueError('Multiple list refresh markers')
+        if not refresh_due(markers[0]['metadataValue'] if markers else '', now):
+            return
+        marker = REFRESH_PREFIX + now.isoformat() + ']'
+        requests = []
+        if self.row_numbers:
+            # Preserve the complete outgoing batch, including notes and statuses.
+            # Archive and clear are one atomic Sheets request.
+            requests.append({'duplicateSheet': {'sourceSheetId': sheet_id,
+                'newSheetName': now.strftime('Archive %Y-%m-%d %H%M%S')}})
+            for index in self.row_numbers.values():
+                requests.append({'updateCells': {'range': {'sheetId': sheet_id,
+                    'startRowIndex': index - 1, 'endRowIndex': index,
+                    'startColumnIndex': 0, 'endColumnIndex': 20}, 'fields': 'userEnteredValue'}})
+        if markers:
+            requests.append({'updateDeveloperMetadata': {
+                'dataFilters': [{'developerMetadataLookup': {'metadataId': markers[0]['metadataId']}}],
+                'developerMetadata': {'metadataValue': marker}, 'fields': 'metadataValue'}})
+        else:
+            requests.append({'createDeveloperMetadata': {'developerMetadata': {
+                'metadataKey': 'job_watch_refresh', 'metadataValue': marker,
+                'location': {'sheetId': sheet_id}, 'visibility': 'DOCUMENT'}}})
+        request(self.url + ':batchUpdate', {'requests': requests}, token=self.token)
+
     def format_rows(self, first, last):
         metadata = request(self.url + '?fields=sheets(properties(sheetId,title),basicFilter)', token=self.token)
         sheet = next(s for s in metadata['sheets'] if s['properties']['title'] == 'Jobs')
@@ -97,16 +133,17 @@ class GoogleSheet:
         if pending:
             # The workflow's concurrency group serializes writers. Ambiguous POSTs are
             # not retried. The next run reads the Job ID column before another append.
-            result = request(self.url + '/values/' + quote("'Jobs'!A5:T", safe='') +
-                             ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',
-                             {'majorDimension': 'ROWS', 'values': [row(j) for j in pending]}, token=self.token)
-            if result.get('updates', {}).get('updatedRows') != len(pending):
-                raise RuntimeError('Unexpected append result; next run must reconcile sheet IDs')
-            updated = result['updates'].get('updatedRange', '')
-            extent = re.search(r'!A(\d+):T(\d+)$', updated)
-            if not extent:
-                raise RuntimeError('Unexpected updated range; next run must reconcile sheet IDs')
-            self.format_rows(int(extent[1]), int(extent[2]))
+            sheet_id = self.sheet_metadata()['properties']['sheetId']
+            values = [{'values': [{'userEnteredValue': {
+                'numberValue' if isinstance(value, (int, float)) else 'stringValue': value}}
+                for value in row(j)]} for j in pending]
+            request(self.url + ':batchUpdate', {'requests': [
+                {'insertDimension': {'range': {'sheetId': sheet_id, 'dimension': 'ROWS',
+                                                'startIndex': 5, 'endIndex': 5 + len(pending)},
+                                     'inheritFromBefore': False}},
+                {'updateCells': {'start': {'sheetId': sheet_id, 'rowIndex': 5, 'columnIndex': 0},
+                                 'rows': values, 'fields': 'userEnteredValue'}}]}, token=self.token)
+            self.format_rows(6, 5 + len(pending))
         elif jobs and getattr(self, 'row_numbers', None):
             # Finish formatting if a previous append succeeded but formatting failed.
             positions = [self.row_numbers[j['key']] for j in jobs]

@@ -12,6 +12,7 @@ class SheetTests(unittest.TestCase):
         sink.token='test'
         sink.delivery_key='sheets:test'
         sink.format_rows=lambda first,last:None
+        sink.sheet_metadata=lambda:{'properties':{'title':'Jobs','sheetId':9}}
         return sink
 
     def result(self):
@@ -24,12 +25,13 @@ class SheetTests(unittest.TestCase):
         value['company']='=IMPORTXML("https://bad.test","x")'
         with patch('monitor.sheets.request',return_value={'updates':{'updatedRows':1,'updatedRange':"'Jobs'!A6:T6"}}) as send:
             sink.append([value,value])
-            self.assertIn('valueInputOption=RAW',send.call_args.args[0])
-            rows=send.call_args.args[1]['values']
+            requests=send.call_args.args[1]['requests']
+            self.assertEqual(requests[0]['insertDimension']['range']['startIndex'],5)
+            rows=requests[1]['updateCells']['rows']
             self.assertEqual(len(rows),1)
-            self.assertEqual(rows[0][0],value['company'])
-            self.assertEqual(rows[0][2],0.5)
-            self.assertEqual(len(rows[0]),len(HEADERS))
+            self.assertEqual(rows[0]['values'][0]['userEnteredValue'],{'stringValue':value['company']})
+            self.assertEqual(rows[0]['values'][2]['userEnteredValue'],{'numberValue':0.5})
+            self.assertEqual(len(rows[0]['values']),len(HEADERS))
 
     def test_reconcile_successful_write_after_crash(self):
         sink=self.sink()

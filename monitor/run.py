@@ -72,6 +72,8 @@ def main():
             from .docs import GoogleDoc
             sink = GoogleDoc()
     try:
+        if sink:
+            sink.refresh()
         matches = process(jobs, profile, state, sink)
         save(args.output, matches)
     finally:
