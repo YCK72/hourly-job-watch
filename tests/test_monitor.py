@@ -19,6 +19,10 @@ def job(**changes):
 
 
 class MonitorTests(unittest.TestCase):
+    def test_null_country_and_location(self):
+        self.assertIsNotNone(evaluate(job(country=None), {'skills': ['python']}))
+        self.assertIsNone(evaluate(job(country=None, location=None), {'skills': ['python']}))
+
     def test_threshold_inclusive(self):
         self.assertEqual(evaluate(job(), {'skills': ['python']})['fit_score'], 50)
         self.assertIsNone(evaluate(job(description='Python SQL Rust'), {'skills': ['python']}))

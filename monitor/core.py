@@ -99,10 +99,10 @@ US_CITIES = r'New York|San Francisco|Seattle|Austin|Boston|Chicago|Los Angeles|S
 
 
 def us_location(job):
-    country = job.get('country', '').upper()
+    country = (job.get('country') or '').upper()
     if country in ('US', 'USA', 'UNITED STATES', 'UNITED STATES OF AMERICA'):
         return True
-    loc = job.get('location', '')
+    loc = job.get('location') or ''
     return bool(re.search(r'\b(?:United States|USA|U\.S\.|US)\b', loc) or
                 re.search(r',\s*(?:' + '|'.join(STATES) + r')\b', loc) or
                 re.search(r'\b(?:' + US_CITIES + r')\b', loc, re.I))
