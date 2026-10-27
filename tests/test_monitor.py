@@ -43,6 +43,34 @@ class MonitorTests(unittest.TestCase):
                         {'title': 'Software Engineer', 'description': 'Python. 5+ years of experience required.'}):
             self.assertIsNone(evaluate(job(**changes), {'skills': ['python']}))
 
+    def test_experience_ceiling_applies_even_to_entry_titles(self):
+        for title in ('Software Engineer', 'Software Engineer, New Grad',
+                      'Junior Software Engineer', 'Software Engineer I'):
+            for requirement in ('2 years of experience required.',
+                                '2+ years of professional experience.',
+                                '2–4 years of experience.',
+                                'Two years of experience required.',
+                                '5 years of experience required.',
+                                '1 year of Python experience. 2 years of SQL experience.'):
+                with self.subTest(title=title, requirement=requirement):
+                    self.assertIsNone(evaluate(
+                        job(title=title, description='Python. ' + requirement),
+                        {'skills': ['python']}))
+
+    def test_zero_and_one_year_minimums_remain_eligible(self):
+        for requirement in ('0 years of experience.', '1 year of experience.',
+                            '0-1 years of experience.', '0-2 years of experience.',
+                            '1–2 years of experience.', 'One year of experience.',
+                            'No prior experience is required.'):
+            with self.subTest(requirement=requirement):
+                self.assertIsNotNone(evaluate(
+                    job(description='Python. ' + requirement), {'skills': ['python']}))
+
+    def test_preferred_experience_is_not_required(self):
+        self.assertIsNotNone(evaluate(
+            job(description='Python. 1 year of experience required. 3 years preferred.'),
+            {'skills': ['python']}))
+
     def test_future_sponsorship_excluded(self):
         for text in ('We do not offer visa sponsorship.',
                      'Must work without sponsorship now or in the future.',

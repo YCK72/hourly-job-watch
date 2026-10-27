@@ -132,7 +132,7 @@ def evaluate(job, profile):
         minimums.extend(int(n) for n in re.findall(r'\b(\d+)\s*(?:\+|[-–]\s*\d+)?\s*(?:years?|yrs?)\b', numeric(requirement), re.I))
     explicit_entry = bool(re.search(r'new.grad|entry.level|junior|university grad|early.career|engineer I\b|engineer 1\b', title, re.I))
     entry_body = bool(re.search(r'(?:new|recent|university) graduates?|entry.level (?:role|position)|no (?:prior |professional )?experience (?:is )?required', text, re.I))
-    if minimums and max(minimums) > 2 and not explicit_entry:
+    if minimums and max(minimums) > 1:
         return None
     if not (explicit_entry or entry_body or minimums):
         return None
@@ -149,8 +149,6 @@ def evaluate(job, profile):
     flags = []
     if not explicit_entry:
         flags.append('Entry-level eligibility inferred from experience/graduate wording; verify')
-    if explicit_entry and minimums and max(minimums) > 2:
-        flags.append('Entry-level title conflicts with experience text; review')
     if not status.startswith('stated available'):
         flags.append('Future sponsorship requires verification')
     for sentence in sentences(text):

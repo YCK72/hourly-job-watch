@@ -42,9 +42,11 @@ conflicting evidence stay flagged. A work-authorization requirement alone is not
 Employer wording is always included; automated text rules are imperfect and require human review.
 No historical sponsorship claim is substituted for the actual posting.
 
-Senior/intern roles are excluded. General roles with stated minimum experience above two years
-are excluded unless an explicit entry-level title conflicts (then flagged). Generic titles need
-graduate wording or a stated experience requirement of at most two years. Unspecified seniority
+Senior/intern roles are excluded. Roles with stated minimum experience above one year
+are excluded, even when the title says new-grad, junior, or entry-level. Ranges such as
+0–2 or 1–2 years remain eligible because their minimum is at most one year; preferred
+experience is not treated as required. Generic titles need
+graduate wording or a stated experience requirement of at most one year. Unspecified seniority
 without that evidence is excluded. Remote-only locations without US evidence
 are excluded rather than assumed to be US eligible.
 
